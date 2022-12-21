@@ -4,7 +4,7 @@ import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
 import { AppService } from './app.service';
 import { RedisService } from './redis/redis.service';
-import { NodeService } from './node/node.service';
+import { ChainService } from './chain/chain.service';
 
 @Module({
   imports: [
@@ -25,6 +25,6 @@ import { NodeService } from './node/node.service';
       }),
     }),
   ],
-  providers: [AppService, RedisService, NodeService],
+  providers: [AppService, RedisService, ChainService],
 })
 export class AppModule {}
