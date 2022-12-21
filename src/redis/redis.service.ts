@@ -2,6 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { default as Redis } from 'ioredis';
 
+/**
+ * @module
+ * @description Responsible for all interactions with Redis.
+ */
 @Injectable()
 export class RedisService {
   private readonly logger = new Logger(RedisService.name);
@@ -20,6 +24,9 @@ export class RedisService {
     this.logger.log('Hello redis');
   }
 
+  /**
+   * @returns The block number state in redis is synced to.
+   */
   async getSyncedBlock() {
     const syncedBlock = await this.client.get('syncedBlock');
     if (syncedBlock) {

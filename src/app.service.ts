@@ -7,6 +7,15 @@ import { range } from './utility';
 // Alchemy max blocks per event query is 2k
 const CHUNK_SIZE = 2000;
 
+// Ms to wait between checking for a new block
+const SLEEP = 1000;
+
+/**
+ * @module
+ * @description Service entrypoint.
+ * The .run() method is called on instantiation, which kicks off the core
+ * service logic of the app and keeps it running.
+ */
 @Injectable()
 export class AppService {
   private readonly logger = new Logger(AppService.name);
@@ -18,33 +27,55 @@ export class AppService {
     this.redis = redis;
     this.chain = chain;
     this.config = config;
-    this.init();
+    this.run();
   }
 
-  private async init() {
-    // const curSynced = await this.redis.getSyncedBlock();
+  /**
+   * @description Process all blocks from the last synced block to the
+   * current block. When done, calls itself again after a sleep.
+   */
+  private async run() {
+    const curSynced = await this.redis.getSyncedBlock();
     const curBlock = await this.chain.provider.getBlockNumber();
     const deployBlock =
       this.config.get<number>('SETTLEMENT_CONTRACT_DEPLOY_BLOCK') || 0;
-    this.logger.log({
-      deployBlock,
-      curBlock,
-    });
 
-    await this.processBlockRangeInChunks(deployBlock, curBlock - 1);
-    this.logger.log('Done');
+    // Don't bother syncing before the settlement contract was deployed
+    const fromBlock = Math.max(curSynced + 1, deployBlock);
+
+    await this.processBlockRangeInChunks(fromBlock, curBlock - 1);
+
+    setTimeout(this.run.bind(this), SLEEP);
   }
 
-  // Throttle processing CHUNK_SIZE blocks at a time
-  private async processBlockRangeInChunks(fromBlock: number, toBlock: number) {
-    for (const i of range(fromBlock, toBlock, CHUNK_SIZE)) {
-      const j = Math.min(i + CHUNK_SIZE, toBlock);
-      await this.processBlockRange(i, j);
-    }
-  }
-
+  /**
+   * @param fromBlock inclusive
+   * @param toBlock inclusive
+   * @description Process all blocks from fromBlock to toBlock
+   * - Gets all Approvals to the token contract for the settlement contract
+   * - Gets the WETH balance of every
+   */
   private async processBlockRange(fromBlock: number, toBlock: number) {
     const logs = await this.chain.getLogsBetween(fromBlock, toBlock);
     this.logger.log({ logs: logs.length, fromBlock, toBlock });
+  }
+
+  /**
+   *
+   * @param fromBlock inclusive
+   * @param toBlock inclusive
+   * @param chunkSize
+   * @description Process all blocks from fromBlock to toBlock in chunks of chunkSize
+   * Useful for Alchemy which has a max block range of 2k.
+   */
+  private async processBlockRangeInChunks(
+    fromBlock: number,
+    toBlock: number,
+    chunkSize = CHUNK_SIZE,
+  ) {
+    for (const i of range(fromBlock, toBlock, chunkSize)) {
+      const j = Math.min(i + CHUNK_SIZE, toBlock);
+      await this.processBlockRange(i, j);
+    }
   }
 }

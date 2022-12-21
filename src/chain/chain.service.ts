@@ -3,6 +3,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import erc20Abi from './abi/erc20';
 
+/**
+ * @module
+ * @description Responsible for all interactions with the Ethereum blockchain.
+ */
 @Injectable()
 export class ChainService {
   readonly provider: ethers.providers.JsonRpcProvider;
@@ -29,7 +33,15 @@ export class ChainService {
     this.settlementContractAddr = settlementContractAddr;
   }
 
-  async getLogsBetween(fromBlock: number, toBlock: number): Promise<any> {
+  /**
+   * @param fromBlock inclusive
+   * @param toBlock inclusive
+   * @returns All relevant Approval logs between fromBlock and toBlock
+   */
+  async getLogsBetween(
+    fromBlock: number,
+    toBlock: number,
+  ): Promise<ethers.providers.Log[]> {
     const filter = this.buildFilter(fromBlock, toBlock);
     try {
       const logs = await this.provider.getLogs(filter);
@@ -51,6 +63,12 @@ export class ChainService {
     }
   }
 
+  /**
+   * @param fromBlock inclusive
+   * @param toBlock inclusive
+   * @returns A filter for all Approval logs between fromBlock and toBlock
+   * where the spender is the settlement contract.
+   */
   private buildFilter(
     fromBlock: number,
     toBlock: number,
