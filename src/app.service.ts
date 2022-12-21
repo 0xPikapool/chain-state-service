@@ -18,12 +18,17 @@ export class AppService {
     this.redis = redis;
     this.ethNode = ethNode;
     this.config = config;
-    this.run();
+    this.init();
   }
 
-  async run() {
-    this.logger.log('Hello nest');
-    await new Promise((r) => setTimeout(r, 1000));
-    this.run();
+  async init() {
+    const curSynced = await this.redis.getSyncedBlock();
+    const deployBlock = this.config.get<number>(
+      'SETTLEMENT_CONTRACT_DEPLOY_BLOCK',
+    );
+    this.logger.log({
+      curSynced,
+      deployBlock,
+    });
   }
 }

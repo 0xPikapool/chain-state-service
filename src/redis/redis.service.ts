@@ -9,12 +9,23 @@ export class RedisService {
   readonly networkId: string;
 
   constructor(config: ConfigService) {
-    this.client = new Redis();
+    const host = config.get<string>('REDIS_HOST');
+    const port = config.get<number>('REDIS_PORT');
+    const networkId = config.get<number>('NETWORK_ID');
+    this.client = new Redis({
+      host,
+      port,
+      db: networkId,
+    });
     this.logger.log('Hello redis');
-    this.networkId = config.get<string>('NETWORK_ID');
   }
 
-  getSyncedBlock() {
-    return this.client.get(`${this.networkId}:syncedBlock`);
+  async getSyncedBlock() {
+    const syncedBlock = await this.client.get('syncedBlock');
+    if (syncedBlock) {
+      return parseInt(syncedBlock, 10);
+    }
+
+    return 0;
   }
 }
