@@ -1,7 +1,8 @@
 import { ethers } from 'ethers';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import erc20Abi from './abi/erc20';
+import { Erc20, Erc20__factory } from './types/contracts';
+import { ApprovalEvent, ApprovalEventFilter } from './types/contracts/Erc20';
 
 /**
  * @module
@@ -10,9 +11,9 @@ import erc20Abi from './abi/erc20';
 @Injectable()
 export class ChainService {
   readonly provider: ethers.providers.JsonRpcProvider;
-  readonly tokenContract: ethers.Contract;
+  readonly tokenContract: Erc20;
   private readonly logger = new Logger(ChainService.name);
-  private readonly settlementContractAddr: string;
+  private readonly filter: ApprovalEventFilter;
 
   constructor(config: ConfigService) {
     const rpcUrl = config.get<string>('ETH_RPC_URL');
@@ -25,12 +26,15 @@ export class ChainService {
       throw new Error('SETTLEMENT_CONTRACT_ADDR is not set');
 
     this.provider = new ethers.providers.StaticJsonRpcProvider(rpcUrl);
-    this.tokenContract = new ethers.Contract(
+    this.tokenContract = Erc20__factory.connect(
       tokenContractAddr,
-      erc20Abi,
       this.provider,
     );
-    this.settlementContractAddr = settlementContractAddr;
+    this.filter = this.tokenContract.filters.Approval(
+      null,
+      settlementContractAddr,
+      null,
+    );
   }
 
   /**
@@ -38,13 +42,13 @@ export class ChainService {
    * @param toBlock inclusive
    * @returns All relevant Approval logs between fromBlock and toBlock
    */
-  async getLogsBetween(
-    fromBlock: number,
-    toBlock: number,
-  ): Promise<ethers.providers.Log[]> {
-    const filter = this.buildFilter(fromBlock, toBlock);
+  async getLogsBetween(fromBlock: number, toBlock: number): Promise<any> {
     try {
-      const logs = await this.provider.getLogs(filter);
+      const logs = await this.tokenContract.queryFilter<ApprovalEvent>(
+        this.filter,
+        fromBlock,
+        toBlock,
+      );
       return logs;
     } catch (error) {
       if (toBlock - fromBlock < 10) throw Error(error);
@@ -61,27 +65,5 @@ export class ChainService {
       ]);
       return [...l, ...r];
     }
-  }
-
-  /**
-   * @param fromBlock inclusive
-   * @param toBlock inclusive
-   * @returns A filter for all Approval logs between fromBlock and toBlock
-   * where the spender is the settlement contract.
-   */
-  private buildFilter(
-    fromBlock: number,
-    toBlock: number,
-  ): ethers.providers.Filter {
-    const base = this.tokenContract.filters.Approval(
-      null,
-      this.settlementContractAddr,
-      null,
-    );
-    return {
-      ...base,
-      fromBlock,
-      toBlock,
-    };
   }
 }
