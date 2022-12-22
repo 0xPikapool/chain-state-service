@@ -19,7 +19,6 @@ import { ChainService } from './chain/chain.service';
         NETWORK_ID: Joi.number(),
         REDIS_HOST: Joi.string(),
         REDIS_PORT: Joi.number().integer().positive(),
-        TOKEN_CONTRACT_ADDR: Joi.string(),
         SETTLEMENT_CONTRACT_ADDR: Joi.string(),
         SETTLEMENT_CONTRACT_DEPLOY_BLOCK: Joi.number().positive().integer(),
       }),

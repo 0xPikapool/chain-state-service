@@ -1,8 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from './redis/redis.service';
+import cliProgress from 'cli-progress';
 import { ChainService } from './chain/chain.service';
 import { range } from './utility';
+import { ApprovalEvent } from './chain/types/contracts/Erc20';
 
 // Alchemy max blocks per event query is 2k
 const CHUNK_SIZE = 2000;
@@ -21,13 +23,23 @@ export class AppService {
   private readonly logger = new Logger(AppService.name);
   private readonly redis: RedisService;
   private readonly chain: ChainService;
-  private readonly config: ConfigService;
+  private readonly settlementContractDeployBlock: number;
+  private progressBar: cliProgress.SingleBar;
 
   constructor(config: ConfigService, redis: RedisService, chain: ChainService) {
     this.redis = redis;
     this.chain = chain;
-    this.config = config;
-    this.run();
+    this.settlementContractDeployBlock =
+      config.get<number>('SETTLEMENT_CONTRACT_DEPLOY_BLOCK') || 0;
+
+    this.init().then(() => this.run());
+  }
+
+  /**
+   * @description Initialize async stuff before first run
+   */
+  async init() {
+    await this.chain.init();
   }
 
   /**
@@ -37,13 +49,14 @@ export class AppService {
   private async run() {
     const curSynced = await this.redis.getSyncedBlock();
     const curBlock = await this.chain.provider.getBlockNumber();
-    const deployBlock =
-      this.config.get<number>('SETTLEMENT_CONTRACT_DEPLOY_BLOCK') || 0;
 
     // Don't bother syncing before the settlement contract was deployed
-    const fromBlock = Math.max(curSynced + 1, deployBlock);
+    const fromBlock = Math.max(curSynced, this.settlementContractDeployBlock);
 
-    await this.processBlockRangeInChunks(fromBlock, curBlock - 1);
+    if (fromBlock < curBlock) {
+      this.logger.log(`Syncing blocks ${fromBlock} to ${curBlock}`);
+      await this.processBlockRangeInChunks(fromBlock, curBlock);
+    }
 
     setTimeout(this.run.bind(this), SLEEP);
   }
@@ -56,8 +69,25 @@ export class AppService {
    * - Gets the WETH balance of every
    */
   private async processBlockRange(fromBlock: number, toBlock: number) {
-    const logs = await this.chain.getLogsBetween(fromBlock, toBlock);
-    this.logger.log({ logs: logs.length, fromBlock, toBlock });
+    const events = await this.chain.getApprovalEventsBetween(
+      fromBlock,
+      toBlock,
+    );
+
+    // Process events one at a time
+    await Promise.all(events.map(this.processApprovalEvent.bind(this)));
+  }
+
+  private async processApprovalEvent(event: ApprovalEvent) {
+    const { args, blockNumber } = event;
+    const { owner, value } = args;
+
+    // Sanity check that this is a more recent approval than the cur in redis
+    const lastBlock = await this.redis.getLastApprovalBlock(owner);
+    if (lastBlock >= blockNumber) return;
+
+    // Update the approval in redis
+    await this.redis.setLatestApproval(owner, value, blockNumber);
   }
 
   /**
@@ -73,9 +103,17 @@ export class AppService {
     toBlock: number,
     chunkSize = CHUNK_SIZE,
   ) {
-    for (const i of range(fromBlock, toBlock, chunkSize)) {
-      const j = Math.min(i + CHUNK_SIZE, toBlock);
-      await this.processBlockRange(i, j);
+    this.progressBar = new cliProgress.SingleBar(
+      {},
+      cliProgress.Presets.shades_classic,
+    );
+    this.progressBar.start(toBlock - fromBlock, 0);
+    for (const curFrom of range(fromBlock, toBlock, chunkSize)) {
+      const curTo = Math.min(curFrom + CHUNK_SIZE, toBlock);
+      await this.processBlockRange(curFrom, curTo);
+      await this.redis.setSyncedBlock(curTo);
+      this.progressBar.increment(curTo - curFrom);
     }
+    this.progressBar.stop();
   }
 }

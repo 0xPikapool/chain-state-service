@@ -1,7 +1,12 @@
 import { ethers } from 'ethers';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Erc20, Erc20__factory } from './types/contracts';
+import {
+  Erc20,
+  Erc20__factory,
+  UniswapV2Router02__factory,
+  UniswapV2Router02,
+} from './types/contracts';
 import { ApprovalEvent, ApprovalEventFilter } from './types/contracts/Erc20';
 
 /**
@@ -11,28 +16,48 @@ import { ApprovalEvent, ApprovalEventFilter } from './types/contracts/Erc20';
 @Injectable()
 export class ChainService {
   readonly provider: ethers.providers.JsonRpcProvider;
-  readonly tokenContract: Erc20;
+  readonly settlementContract: UniswapV2Router02;
   private readonly logger = new Logger(ChainService.name);
-  private readonly filter: ApprovalEventFilter;
+  private tokenContract: Erc20 | undefined;
+  private filter: ApprovalEventFilter;
+  private config: ConfigService;
 
   constructor(config: ConfigService) {
     const rpcUrl = config.get<string>('ETH_RPC_URL');
-    const tokenContractAddr = config.get<string>('TOKEN_CONTRACT_ADDR');
     const settlementContractAddr = config.get<string>(
       'SETTLEMENT_CONTRACT_ADDR',
     );
-    if (!tokenContractAddr) throw new Error('TOKEN_CONTRACT_ADDR is not set');
     if (!settlementContractAddr)
       throw new Error('SETTLEMENT_CONTRACT_ADDR is not set');
 
     this.provider = new ethers.providers.StaticJsonRpcProvider(rpcUrl);
+    this.settlementContract = UniswapV2Router02__factory.connect(
+      settlementContractAddr,
+      this.provider,
+    );
+    this.config = config;
+  }
+
+  /**
+   * @description Perform async setup
+   * TODO: Replace UniswapV2Router with settlement contract
+   */
+  async init() {
+    const tokenContractAddr = await this.settlementContract.WETH();
+    const actualNetworkId = (await this.provider.getNetwork()).chainId;
+    const configNetworkId = this.config.get<number>('NETWORK_ID');
+    if (configNetworkId !== actualNetworkId) {
+      throw new Error(
+        `NETWORK_ID is set to ${configNetworkId} but the actual network id is ${actualNetworkId}`,
+      );
+    }
     this.tokenContract = Erc20__factory.connect(
       tokenContractAddr,
       this.provider,
     );
     this.filter = this.tokenContract.filters.Approval(
       null,
-      settlementContractAddr,
+      this.settlementContract.address,
       null,
     );
   }
@@ -42,7 +67,12 @@ export class ChainService {
    * @param toBlock inclusive
    * @returns All relevant Approval logs between fromBlock and toBlock
    */
-  async getLogsBetween(fromBlock: number, toBlock: number): Promise<any> {
+  async getApprovalEventsBetween(
+    fromBlock: number,
+    toBlock: number,
+  ): Promise<ApprovalEvent[]> {
+    if (!this.tokenContract) throw new Error('Token contract not initialized');
+
     try {
       const logs = await this.tokenContract.queryFilter<ApprovalEvent>(
         this.filter,
@@ -60,8 +90,8 @@ export class ChainService {
       );
       const midBlock = Math.floor((fromBlock + toBlock) / 2);
       const [l, r] = await Promise.all([
-        this.getLogsBetween(fromBlock, midBlock),
-        this.getLogsBetween(midBlock + 1, toBlock),
+        this.getApprovalEventsBetween(fromBlock, midBlock),
+        this.getApprovalEventsBetween(midBlock + 1, toBlock),
       ]);
       return [...l, ...r];
     }
