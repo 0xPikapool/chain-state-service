@@ -164,7 +164,7 @@ export class AppService {
     chunkSize = CHUNK_SIZE,
   ) {
     this.progressBar = new cliProgress.SingleBar(
-      {},
+      { noTTYOutput: true },
       cliProgress.Presets.shades_classic,
     );
     this.progressBar.start(toBlock - fromBlock, 0);

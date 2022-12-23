@@ -7,7 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "prebuild": "rimraf dist",
-    "postinstall": "typechain --target ethers-v5 --out-dir src/chain/types/contracts 'src/chain/abi/*.json'",
+    "postinstall": "typechain --target ethers-v5 --out-dir ./src/chain/types/contracts './src/chain/abi/*.json'",
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
@@ -38,7 +38,7 @@
     "xxhash-wasm": "^1.0.2"
   },
   "devDependencies": {
-    "@nestjs/cli": "^9.0.0",
+    "@nestjs/cli": "^9.1.5",
     "@nestjs/schematics": "^9.0.0",
     "@nestjs/testing": "^9.0.0",
     "@typechain/ethers-v5": "^10.2.0",
