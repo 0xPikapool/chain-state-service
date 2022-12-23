@@ -19,21 +19,25 @@ import { TypedEvent } from './types/contracts/common';
  */
 @Injectable()
 export class ChainService {
-  readonly provider: ethers.providers.JsonRpcProvider;
+  readonly provider: ethers.providers.AlchemyProvider;
   readonly settlementContract: UniswapV2Router02;
   private readonly logger = new Logger(ChainService.name);
   private config: ConfigService;
   tokenContract: Erc20 | undefined;
 
   constructor(config: ConfigService) {
-    const rpcUrl = config.get<string>('ETH_RPC_URL');
+    const alchemyApiKey = config.get<string>('ALCHEMY_API_KEY');
+    const networkId = config.get<number>('NETWORK_ID');
     const settlementContractAddr = config.get<string>(
       'SETTLEMENT_CONTRACT_ADDR',
     );
     if (!settlementContractAddr)
       throw new Error('SETTLEMENT_CONTRACT_ADDR is not set');
 
-    this.provider = new ethers.providers.StaticJsonRpcProvider(rpcUrl);
+    this.provider = new ethers.providers.AlchemyProvider(
+      networkId,
+      alchemyApiKey,
+    );
     this.settlementContract = UniswapV2Router02__factory.connect(
       settlementContractAddr,
       this.provider,
@@ -109,8 +113,7 @@ export class ChainService {
     if (!this.tokenContract) throw new Error('Token contract not initialized');
     return this.tokenContract.filters.Approval(
       null,
-      // this.settlementContract.address,
-      null,
+      this.settlementContract.address,
       null,
     );
   }

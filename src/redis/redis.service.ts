@@ -86,6 +86,24 @@ export class RedisService {
   }
 
   /**
+   * @description Get the last block number the owner has approved. -1 if never.
+   * @param owner Owner of the approval
+   * @returns
+   */
+  async setLatestBalance(owner: string, value: BigNumber, blockNumber: number) {
+    const key = this.buildOwnerKey(owner);
+
+    this.approversCache.add(owner);
+    return this.client
+      .multi()
+      .hmset(key, {
+        lastBalanceValue: utils.formatUnits(value),
+        lastBalanceBlock: blockNumber.toString(),
+      })
+      .exec();
+  }
+
+  /**
    * @returns All owners that have approved the settlement contract
    * @dev This can be big, so get it with an sscan not smembers
    */
@@ -138,6 +156,21 @@ export class RedisService {
     const latestApproval = await this.client.hget(key, 'lastApprovalBlock');
     if (latestApproval) {
       return parseInt(latestApproval, 10);
+    }
+
+    return -1;
+  }
+
+  /**
+   * @description Get the last block number the owner has approved. -1 if never.
+   * @param owner Owner of the approval
+   * @returns
+   */
+  async getLastBalanceBlock(owner: string): Promise<number> {
+    const key = this.buildOwnerKey(owner);
+    const latestBalanceBlock = await this.client.hget(key, 'lastBalanceBlock');
+    if (latestBalanceBlock) {
+      return parseInt(latestBalanceBlock, 10);
     }
 
     return -1;

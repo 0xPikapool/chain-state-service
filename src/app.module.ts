@@ -15,7 +15,7 @@ import { ChainService } from './chain/chain.service';
         NODE_ENV: Joi.string()
           .valid('development', 'production', 'test', 'provision')
           .default('development'),
-        ETH_RPC_URL: Joi.string().uri(),
+        ALCHEMY_API_KEY: Joi.string(),
         NETWORK_ID: Joi.number(),
         REDIS_HOST: Joi.string(),
         REDIS_PORT: Joi.number().integer().positive(),

@@ -81,8 +81,46 @@ export class AppService {
 
     // Now get the full list of approvers, and any Transfers they made
     // in the current block range
-    const approverSet = await this.redis.getApproverSet();
+    const fullApproverSet = await this.redis.getApproverSet();
+    const [fromTransfers, toTransfers] = await this.getAllNewTransfers(
+      fromBlock,
+      toBlock,
+      fullApproverSet,
+    );
 
+    // Update redis with the new transfers and balances
+    const curBlockRangeActiveApproverSet = new Set<string>();
+    fromTransfers.forEach((t) => {
+      curBlockRangeActiveApproverSet.add(t.args.from);
+    });
+    toTransfers.forEach((t) => {
+      curBlockRangeActiveApproverSet.add(t.args.to);
+    });
+    approvalEvents.forEach((t) => {
+      curBlockRangeActiveApproverSet.add(t.args.owner);
+    });
+    const curBlockNumber = await this.chain.provider.getBlockNumber();
+    await Promise.all(
+      [...curBlockRangeActiveApproverSet].map(async (approver) => {
+        const lastTransferBlockInRedis = await this.redis.getLastBalanceBlock(
+          approver,
+        );
+        if (curBlockNumber > lastTransferBlockInRedis) {
+          const blockBal = await this.chain.tokenContract?.balanceOf(approver, {
+            blockTag: curBlockNumber,
+          });
+          if (!blockBal) throw new Error('No block balance');
+          await this.redis.setLatestBalance(approver, blockBal, curBlockNumber);
+        }
+      }),
+    );
+  }
+
+  private async getAllNewTransfers(
+    fromBlock: number,
+    toBlock: number,
+    approverSet: Set<string>,
+  ) {
     const transferFilterGenerator = new TransferFilterGenerator(
       this.chain.getTokenContract(),
       [...approverSet],
@@ -97,22 +135,7 @@ export class AppService {
       toBlock,
       transferFilterGenerator.getToFilters(),
     );
-
-    fromTransfers.forEach((e) => {
-      const from = e.args[0];
-      if (!approverSet.has(from)) {
-        this.logger.warn(`Got transfer from ${from} but not in approver list`);
-      }
-    });
-    toTransfers.forEach((e) => {
-      const from = e.args[1];
-      if (!approverSet.has(from)) {
-        this.logger.warn(`Got transfer from ${from} but not in approver list`);
-      }
-    });
-
-    this.logger.log(fromTransfers.length);
-    this.logger.log(toTransfers.length);
+    return [fromTransfers, toTransfers];
   }
 
   private async processApprovalEvent(event: ApprovalEvent) {
