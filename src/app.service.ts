@@ -3,8 +3,8 @@ import { ConfigService } from '@nestjs/config';
 import { RedisService } from './redis/redis.service';
 import cliProgress from 'cli-progress';
 import { ChainService } from './chain/chain.service';
-import { range } from './utility';
-import { ApprovalEvent } from './chain/types/contracts/Erc20';
+import { range, TransferFilterGenerator } from './utility';
+import { ApprovalEvent, TransferEvent } from './chain/types/contracts/Erc20';
 
 // Alchemy max blocks per event query is 2k
 const CHUNK_SIZE = 2000;
@@ -69,13 +69,50 @@ export class AppService {
    * - Gets the WETH balance of every
    */
   private async processBlockRange(fromBlock: number, toBlock: number) {
-    const events = await this.chain.getApprovalEventsBetween(
+    const filter = this.chain.buildApprovalFilter();
+    const approvalEvents = await this.chain.getEventsBetween(
       fromBlock,
       toBlock,
+      [filter],
     );
 
     // Process events one at a time
-    await Promise.all(events.map(this.processApprovalEvent.bind(this)));
+    await Promise.all(approvalEvents.map(this.processApprovalEvent.bind(this)));
+
+    // Now get the full list of approvers, and any Transfers they made
+    // in the current block range
+    const approverSet = await this.redis.getApproverSet();
+
+    const transferFilterGenerator = new TransferFilterGenerator(
+      this.chain.getTokenContract(),
+      [...approverSet],
+    );
+    const fromTransfers = await this.chain.getEventsBetween<TransferEvent>(
+      fromBlock,
+      toBlock,
+      transferFilterGenerator.getFromFilters(),
+    );
+    const toTransfers = await this.chain.getEventsBetween<TransferEvent>(
+      fromBlock,
+      toBlock,
+      transferFilterGenerator.getToFilters(),
+    );
+
+    fromTransfers.forEach((e) => {
+      const from = e.args[0];
+      if (!approverSet.has(from)) {
+        this.logger.warn(`Got transfer from ${from} but not in approver list`);
+      }
+    });
+    toTransfers.forEach((e) => {
+      const from = e.args[1];
+      if (!approverSet.has(from)) {
+        this.logger.warn(`Got transfer from ${from} but not in approver list`);
+      }
+    });
+
+    this.logger.log(fromTransfers.length);
+    this.logger.log(toTransfers.length);
   }
 
   private async processApprovalEvent(event: ApprovalEvent) {

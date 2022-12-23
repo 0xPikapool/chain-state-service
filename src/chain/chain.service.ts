@@ -7,7 +7,11 @@ import {
   UniswapV2Router02__factory,
   UniswapV2Router02,
 } from './types/contracts';
-import { ApprovalEvent, ApprovalEventFilter } from './types/contracts/Erc20';
+import {
+  ApprovalEventFilter,
+  TransferEventFilter,
+} from './types/contracts/Erc20';
+import { TypedEvent } from './types/contracts/common';
 
 /**
  * @module
@@ -18,9 +22,8 @@ export class ChainService {
   readonly provider: ethers.providers.JsonRpcProvider;
   readonly settlementContract: UniswapV2Router02;
   private readonly logger = new Logger(ChainService.name);
-  private tokenContract: Erc20 | undefined;
-  private filter: ApprovalEventFilter;
   private config: ConfigService;
+  tokenContract: Erc20 | undefined;
 
   constructor(config: ConfigService) {
     const rpcUrl = config.get<string>('ETH_RPC_URL');
@@ -55,45 +58,65 @@ export class ChainService {
       tokenContractAddr,
       this.provider,
     );
-    this.filter = this.tokenContract.filters.Approval(
-      null,
-      this.settlementContract.address,
-      null,
-    );
   }
 
   /**
    * @param fromBlock inclusive
    * @param toBlock inclusive
+   * @param filters filters to run
    * @returns All relevant Approval logs between fromBlock and toBlock
    */
-  async getApprovalEventsBetween(
+  async getEventsBetween<TE extends TypedEvent<any, any>>(
     fromBlock: number,
     toBlock: number,
-  ): Promise<ApprovalEvent[]> {
-    if (!this.tokenContract) throw new Error('Token contract not initialized');
+    filters: (TransferEventFilter | ApprovalEventFilter)[],
+  ): Promise<TE[]> {
+    const all = [];
 
-    try {
-      const logs = await this.tokenContract.queryFilter<ApprovalEvent>(
-        this.filter,
-        fromBlock,
-        toBlock,
-      );
-      return logs;
-    } catch (error) {
-      if (toBlock - fromBlock < 10) throw Error(error);
+    // Process each filter just one at a time to not overwhelm alchemy
+    for (const filter of filters) {
+      try {
+        const logs = await this.getTokenContract().queryFilter<TE>(
+          filter,
+          fromBlock,
+          toBlock,
+        );
+        all.push(...logs);
+      } catch (error) {
+        if (toBlock - fromBlock < 10) throw Error(error);
 
-      // If it failed and there is a wide block raneg, maybe the res is too
-      // large. Split it up over 2 requests and try again.
-      this.logger.warn(
-        `Couldn't get logs between ${fromBlock} and ${toBlock}, splitting into two requests`,
-      );
-      const midBlock = Math.floor((fromBlock + toBlock) / 2);
-      const [l, r] = await Promise.all([
-        this.getApprovalEventsBetween(fromBlock, midBlock),
-        this.getApprovalEventsBetween(midBlock + 1, toBlock),
-      ]);
-      return [...l, ...r];
+        // If it failed and there is a wide block raneg, maybe the res is too
+        // large. Split it up over 2 requests and try again.
+        this.logger.warn(
+          `Couldn't get logs between ${fromBlock} and ${toBlock}, splitting into two requests`,
+        );
+        const midBlock = Math.floor((fromBlock + toBlock) / 2);
+        const [l, r] = await Promise.all([
+          this.getEventsBetween<TE>(fromBlock, midBlock, [filter]),
+          this.getEventsBetween<TE>(midBlock + 1, toBlock, [filter]),
+        ]);
+        all.push(...l, ...r);
+      }
     }
+
+    return all;
+  }
+
+  /**
+   * @returns A filter that matches all approvals for the settlement contract
+   */
+  buildApprovalFilter(): ApprovalEventFilter {
+    if (!this.tokenContract) throw new Error('Token contract not initialized');
+    return this.tokenContract.filters.Approval(
+      null,
+      // this.settlementContract.address,
+      null,
+      null,
+    );
+  }
+
+  getTokenContract(): Erc20 {
+    if (!this.tokenContract) throw new Error('Token contract not initialized');
+    return this.tokenContract;
   }
 }
