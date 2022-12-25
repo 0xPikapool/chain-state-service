@@ -2,23 +2,31 @@
 
 ## Description
 
-Service to keep redis hydrated with real-time chain-data required for the API Service to validate transaction validity.
+Service to keep redis hydrated with real-time chain-data required for the API Service to check basic bid validity without hitting a node.
 
 Primarily, the service
 1. Scrapes `Approval` events where a SettlementContract is the spender, and stores this information + the approve amounts in Redis
-2. Scrapes `Transfer` events involving each 'Approver', and for addresses where a Transfer is detected checks their new balance and caches it in Redis
+2. Scrapes `Transfer` events involving each 'Approver', and uses those as a trigger to update approver balances and cache them in Redis
 
-This way the API Service can ignore bids that would fail due to insufficient approval or balances without making any node requests (which would otherwise quickly become a bottleneck).
+The service can be arbitrarily stopped/crashed and restarted safetly, it will pick up where it left off.
 
 Build as a [Standalone Nest Application](https://docs.nestjs.com/standalone-applications).
 
-## Redis Schema
+## Redis
 
-- `{networkId}:{settlementContractId}:syncedBlock`: The block state Redis is currently synced to
+### Key Prefix
 
-- `{networkId}:{settlementContractId}:approvers`: Set of addresses which have approved the settlement contract
+All keys are specific to a SettlementContract. 
 
-- `{networkId}:{settlementContractId}:{address}`: Map of approvers containing
+Each key is prefixed with `{networkId}:{settlementContractId}`, where `settlementContractId` is the first 4 characters of the contract address.
+
+### Key Schema
+
+- `{prefix}:syncedBlock`: The block state Redis is currently synced to
+
+- `{prefix}:approvers`: Set of addresses which have approved the settlement contract
+
+- `{prefix}:{address}`: Map of approvers containing
   - `lastApproveValue`: The value of the last processed approval event for this address
   - `lastApproveBlock`: Last block the approval amt was updated
   - `lastBalanceValue`: The value of the last processed balance update for this address
@@ -31,7 +39,7 @@ Build as a [Standalone Nest Application](https://docs.nestjs.com/standalone-appl
 
 ## Development
 
-### Install Deps
+### Install deps
 
 ```bash
 $ yarn install
@@ -53,7 +61,7 @@ The application is Dockerized.
 
 1. [Install Docker](https://docs.docker.com/get-docker/)
 2. Make sure `.env` is up-to-date
-3. Execute `docker-compose up`
+3. Run `docker compose up`
 
 ## Multiple Production Environments
 
