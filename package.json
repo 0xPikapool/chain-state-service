@@ -29,6 +29,7 @@
     "@nestjs/platform-express": "^9.0.0",
     "@nestjs/schedule": "^2.1.0",
     "cli-progress": "^3.11.2",
+    "dd-trace": "^3.9.3",
     "ethers": "^5.7.2",
     "ioredis": "^5.2.4",
     "joi": "^17.7.0",
