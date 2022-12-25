@@ -28,13 +28,14 @@ export class RedisService {
     if (!settlementContractAddr)
       throw new Error('SETTLEMENT_CONTRACT_ADDR is not set');
 
-    // Take the first 2 bytes as the Id
-    this.settlementContractId = settlementContractAddr.substring(2, 6);
+    this.settlementContractId = `${networkId}:${settlementContractAddr
+      .substring(2, 6)
+      .toLowerCase()}`;
 
     this.client = new Redis({
       host,
       port,
-      db: networkId,
+      db: 0,
     });
     this.approversCache = new Set();
   }
@@ -43,14 +44,19 @@ export class RedisService {
    * Set current block number state in redis is synced to.
    */
   async setSyncedBlock(blockNumber: number) {
-    return this.client.set('syncedBlock', blockNumber);
+    return this.client.set(
+      `${this.settlementContractId}:syncedBlock`,
+      blockNumber,
+    );
   }
 
   /**
    * @returns The block number state in redis is synced to.
    */
   async getSyncedBlock() {
-    const syncedBlock = await this.client.get('syncedBlock');
+    const syncedBlock = await this.client.get(
+      `${this.settlementContractId}:syncedBlock`,
+    );
     if (syncedBlock) {
       return parseInt(syncedBlock, 10);
     }
@@ -81,7 +87,7 @@ export class RedisService {
         lastApproveValue: valueToUse,
         lastApproveBlock: blockNumber.toString(),
       })
-      .sadd('approvers', owner)
+      .sadd(`${this.settlementContractId}:approvers`, owner)
       .exec();
   }
 
@@ -111,7 +117,9 @@ export class RedisService {
     if (this.approversCache.size > 0) {
       // Sanity check to make sure our cache contains the same amt of approvers
       // as redis
-      const inRedis = await this.client.scard('approvers');
+      const inRedis = await this.client.scard(
+        `${this.settlementContractId}:approvers`,
+      );
       if (inRedis === this.approversCache.size) {
         // Cache is good
         return Promise.resolve(this.approversCache);
@@ -119,13 +127,16 @@ export class RedisService {
 
       // Something wrong with the cache, clear it and rebuild
       this.logger.warn(
-        `Approvers cache size ${this.approversCache.size} does not match redis size ${inRedis}. Clearing cache.`,
+        `Approvers cache size ${this.approversCache.size} does not match redis size ${inRedis}. Clearing in-memory cache and rebuilding.`,
       );
       this.approversCache.clear();
     }
 
-    // Empty cache, build it
-    const stream = this.client.sscanStream('approvers', { count: 1000 });
+    // Cache needs to be built
+    const stream = this.client.sscanStream(
+      `${this.settlementContractId}:approvers`,
+      { count: 1000 },
+    );
     await new Promise((resolve, reject) => {
       stream.on('data', (resultKeys: string[]) => {
         // `resultKeys` is an array of strings representing key names.
