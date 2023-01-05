@@ -102,7 +102,7 @@ export class AppService {
     const curBlockNumber = await this.chain.provider.getBlockNumber();
     await Promise.all(
       [...curBlockRangeActiveApproverSet].map(async (approver) => {
-        const lastTransferBlockInRedis = await this.redis.getLastBalanceBlock(
+        const lastTransferBlockInRedis = await this.redis.getCurBalanceBlock(
           approver,
         );
         if (curBlockNumber > lastTransferBlockInRedis) {
@@ -143,7 +143,7 @@ export class AppService {
     const { owner, value } = args;
 
     // Sanity check that this is a more recent approval than the cur in redis
-    const lastBlock = await this.redis.getLastApprovalBlock(owner);
+    const lastBlock = await this.redis.getCurApprovalBlock(owner);
     if (lastBlock >= blockNumber) return;
 
     // Update the approval in redis
@@ -164,7 +164,7 @@ export class AppService {
     chunkSize = CHUNK_SIZE,
   ) {
     this.progressBar = new cliProgress.SingleBar(
-      { noTTYOutput: true },
+      { noTTYOutput: true, stream: process.stdout },
       cliProgress.Presets.shades_classic,
     );
     this.progressBar.start(toBlock - fromBlock, 0);

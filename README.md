@@ -27,10 +27,10 @@ Each key is prefixed with `{networkId}:{settlementContractId}`, where `settlemen
 - `{prefix}:approvers`: Set of addresses which have approved the settlement contract
 
 - `{prefix}:{address}`: Map of approvers containing
-  - `lastApproveValue`: The value of the last processed approval event for this address
-  - `lastApproveBlock`: Last block the approval amt was updated
-  - `lastBalanceValue`: The value of the last processed balance update for this address
-  - `lastBalanceBlock`: Last block the address balance was updated
+  - `approveValue`: The value of the last processed approval event for this address
+  - `approveBlock`: Last block the approval amt was updated
+  - `balanceValue`: The value of the last processed balance update for this address
+  - `balanceBlock`: Last block the address balance was updated
 
 ## Environment
 

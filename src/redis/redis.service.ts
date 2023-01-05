@@ -1,10 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BigNumber, utils } from 'ethers';
+import { BigNumber, constants } from 'ethers';
 import { default as Redis } from 'ioredis';
-
-// There are only ~120M eth in existence, so this is a safe upper bound
-const U32_MAX_VALUE = BigNumber.from(2).pow(32).sub(1);
 
 /**
  * @module
@@ -75,17 +72,16 @@ export class RedisService {
     blockNumber: number,
   ) {
     const key = this.buildOwnerKey(owner);
-    // check if value is the max uint256
-    const valueToUse = value.gte(U32_MAX_VALUE)
-      ? 'GTE_U32'
-      : utils.formatUnits(value);
+    const valueToUse = value.gte(constants.MaxInt256)
+      ? 'MAX_INT256'
+      : value.toString();
 
     this.approversCache.add(owner);
     return this.client
       .multi()
       .hmset(key, {
-        lastApproveValue: valueToUse,
-        lastApproveBlock: blockNumber.toString(),
+        approveValue: valueToUse,
+        approveBlock: blockNumber.toString(),
       })
       .sadd(`${this.settlementContractId}:approvers`, owner)
       .exec();
@@ -103,8 +99,8 @@ export class RedisService {
     return this.client
       .multi()
       .hmset(key, {
-        lastBalanceValue: utils.formatUnits(value),
-        lastBalanceBlock: blockNumber.toString(),
+        balanceValue: value.toString(),
+        balanceBlock: blockNumber.toString(),
       })
       .exec();
   }
@@ -162,7 +158,7 @@ export class RedisService {
    * @param owner Owner of the approval
    * @returns
    */
-  async getLastApprovalBlock(owner: string): Promise<number> {
+  async getCurApprovalBlock(owner: string): Promise<number> {
     const key = this.buildOwnerKey(owner);
     const latestApproval = await this.client.hget(key, 'lastApprovalBlock');
     if (latestApproval) {
@@ -177,9 +173,9 @@ export class RedisService {
    * @param owner Owner of the approval
    * @returns
    */
-  async getLastBalanceBlock(owner: string): Promise<number> {
+  async getCurBalanceBlock(owner: string): Promise<number> {
     const key = this.buildOwnerKey(owner);
-    const latestBalanceBlock = await this.client.hget(key, 'lastBalanceBlock');
+    const latestBalanceBlock = await this.client.hget(key, 'balanceBlock');
     if (latestBalanceBlock) {
       return parseInt(latestBalanceBlock, 10);
     }
