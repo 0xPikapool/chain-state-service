@@ -4,8 +4,8 @@ import { ConfigService } from '@nestjs/config';
 import {
   Erc20,
   Erc20__factory,
-  UniswapV2Router02__factory,
-  UniswapV2Router02,
+  Settlement,
+  Settlement__factory,
 } from './types/contracts';
 import {
   ApprovalEventFilter,
@@ -20,7 +20,7 @@ import { TypedEvent } from './types/contracts/common';
 @Injectable()
 export class ChainService {
   readonly provider: ethers.providers.AlchemyProvider;
-  readonly settlementContract: UniswapV2Router02;
+  readonly settlementContract: Settlement;
   private readonly logger = new Logger(ChainService.name);
   private config: ConfigService;
   tokenContract: Erc20 | undefined;
@@ -38,7 +38,7 @@ export class ChainService {
       networkId,
       alchemyApiKey,
     );
-    this.settlementContract = UniswapV2Router02__factory.connect(
+    this.settlementContract = Settlement__factory.connect(
       settlementContractAddr,
       this.provider,
     );
@@ -50,7 +50,7 @@ export class ChainService {
    * TODO: Replace UniswapV2Router with settlement contract
    */
   async init() {
-    const tokenContractAddr = await this.settlementContract.WETH();
+    const tokenContractAddr = await this.settlementContract.weth();
     const actualNetworkId = (await this.provider.getNetwork()).chainId;
     const configNetworkId = this.config.get<number>('NETWORK_ID');
     if (configNetworkId !== actualNetworkId) {

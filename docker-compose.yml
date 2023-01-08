@@ -1,10 +1,10 @@
 version: '3.8'
 services:
-  app:
+  goerli-prod:
     build:
       context: .
       dockerfile: './Dockerfile'
     env_file:
-      - .env
+      - .env.goerli.prod
     network_mode: "host"
     restart: always

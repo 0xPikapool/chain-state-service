@@ -1,0 +1,144 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "_wethAddress",
+          "type": "address"
+        },
+        { "internalType": "uint256", "name": "_mintMax", "type": "uint256" }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "bidder",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes",
+          "name": "reason",
+          "type": "bytes"
+        }
+      ],
+      "name": "SettlementFailure",
+      "type": "event"
+    },
+    {
+      "inputs": [],
+      "name": "DOMAIN_SEPARATOR",
+      "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "components": [
+                {
+                  "internalType": "string",
+                  "name": "auctionName",
+                  "type": "string"
+                },
+                {
+                  "internalType": "address",
+                  "name": "auctionAddress",
+                  "type": "address"
+                },
+                {
+                  "internalType": "address",
+                  "name": "bidder",
+                  "type": "address"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "amount",
+                  "type": "uint256"
+                },
+                {
+                  "internalType": "uint256",
+                  "name": "basePrice",
+                  "type": "uint256"
+                },
+                { "internalType": "uint256", "name": "tip", "type": "uint256" }
+              ],
+              "internalType": "struct BidSignatures.Bid",
+              "name": "bid",
+              "type": "tuple"
+            },
+            { "internalType": "uint8", "name": "v", "type": "uint8" },
+            { "internalType": "bytes32", "name": "r", "type": "bytes32" },
+            { "internalType": "bytes32", "name": "s", "type": "bytes32" }
+          ],
+          "internalType": "struct Settlement.Signature[]",
+          "name": "signatures",
+          "type": "tuple[]"
+        }
+      ],
+      "name": "finalizeAuction",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "components": [
+            {
+              "internalType": "string",
+              "name": "auctionName",
+              "type": "string"
+            },
+            {
+              "internalType": "address",
+              "name": "auctionAddress",
+              "type": "address"
+            },
+            { "internalType": "address", "name": "bidder", "type": "address" },
+            { "internalType": "uint256", "name": "amount", "type": "uint256" },
+            {
+              "internalType": "uint256",
+              "name": "basePrice",
+              "type": "uint256"
+            },
+            { "internalType": "uint256", "name": "tip", "type": "uint256" }
+          ],
+          "internalType": "struct BidSignatures.Bid",
+          "name": "bid",
+          "type": "tuple"
+        }
+      ],
+      "name": "hashTypedData",
+      "outputs": [{ "internalType": "bytes32", "name": "", "type": "bytes32" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "mintMax",
+      "outputs": [{ "internalType": "uint256", "name": "", "type": "uint256" }],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "weth",
+      "outputs": [
+        { "internalType": "contract WETH", "name": "", "type": "address" }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    { "stateMutability": "payable", "type": "receive" }
+  ],
+  "bytecode": ""
+}
