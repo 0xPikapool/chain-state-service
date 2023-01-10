@@ -2,15 +2,17 @@ import { ethers } from 'ethers';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
-  Erc20,
-  Erc20__factory,
+  WETH,
+  WETH__factory,
   Settlement,
   Settlement__factory,
 } from './types/contracts';
 import {
   ApprovalEventFilter,
+  DepositEventFilter,
   TransferEventFilter,
-} from './types/contracts/Erc20';
+  WithdrawalEventFilter,
+} from './types/contracts/WETH';
 import { TypedEvent } from './types/contracts/common';
 
 /**
@@ -23,7 +25,7 @@ export class ChainService {
   readonly settlementContract: Settlement;
   private readonly logger = new Logger(ChainService.name);
   private config: ConfigService;
-  tokenContract: Erc20 | undefined;
+  tokenContract: WETH | undefined;
 
   constructor(config: ConfigService) {
     const alchemyApiKey = config.get<string>('ALCHEMY_API_KEY');
@@ -58,7 +60,7 @@ export class ChainService {
         `NETWORK_ID is set to ${configNetworkId} but the actual network id is ${actualNetworkId}`,
       );
     }
-    this.tokenContract = Erc20__factory.connect(
+    this.tokenContract = WETH__factory.connect(
       tokenContractAddr,
       this.provider,
     );
@@ -73,7 +75,12 @@ export class ChainService {
   async getEventsBetween<TE extends TypedEvent<any, any>>(
     fromBlock: number,
     toBlock: number,
-    filters: (TransferEventFilter | ApprovalEventFilter)[],
+    filters: (
+      | TransferEventFilter
+      | ApprovalEventFilter
+      | WithdrawalEventFilter
+      | DepositEventFilter
+    )[],
   ): Promise<TE[]> {
     const all = [];
 
@@ -118,7 +125,7 @@ export class ChainService {
     );
   }
 
-  getTokenContract(): Erc20 {
+  getTokenContract(): WETH {
     if (!this.tokenContract) throw new Error('Token contract not initialized');
     return this.tokenContract;
   }

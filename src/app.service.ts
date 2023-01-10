@@ -3,8 +3,13 @@ import { ConfigService } from '@nestjs/config';
 import { RedisService } from './redis/redis.service';
 import cliProgress from 'cli-progress';
 import { ChainService } from './chain/chain.service';
-import { range, TransferFilterGenerator } from './utility';
-import { ApprovalEvent, TransferEvent } from './chain/types/contracts/Erc20';
+import { range, AddressSpecificFilterGenerator } from './utility';
+import {
+  DepositEvent,
+  WithdrawalEvent,
+  ApprovalEvent,
+  TransferEvent,
+} from './chain/types/contracts/WETH';
 
 // Alchemy max blocks per event query is 2k
 const CHUNK_SIZE = 2000;
@@ -82,19 +87,22 @@ export class AppService {
     // Now get the full list of approvers, and any Transfers they made
     // in the current block range
     const fullApproverSet = await this.redis.getApproverSet();
-    const [fromTransfers, toTransfers] = await this.getAllNewTransfers(
-      fromBlock,
-      toBlock,
-      fullApproverSet,
-    );
+    const { fromTransfers, toTransfers, deposits, withdrawals } =
+      await this.getAllNewTransfers(fromBlock, toBlock, fullApproverSet);
 
     // Update redis with the new transfers and balances
     const curBlockRangeActiveApproverSet = new Set<string>();
     fromTransfers.forEach((t) => {
-      curBlockRangeActiveApproverSet.add(t.args.from);
+      curBlockRangeActiveApproverSet.add(t.args.src);
     });
     toTransfers.forEach((t) => {
-      curBlockRangeActiveApproverSet.add(t.args.to);
+      curBlockRangeActiveApproverSet.add(t.args.dst);
+    });
+    deposits.forEach((t) => {
+      curBlockRangeActiveApproverSet.add(t.args.dst);
+    });
+    withdrawals.forEach((t) => {
+      curBlockRangeActiveApproverSet.add(t.args.src);
     });
     approvalEvents.forEach((t) => {
       curBlockRangeActiveApproverSet.add(t.args.owner);
@@ -121,7 +129,7 @@ export class AppService {
     toBlock: number,
     approverSet: Set<string>,
   ) {
-    const transferFilterGenerator = new TransferFilterGenerator(
+    const transferFilterGenerator = new AddressSpecificFilterGenerator(
       this.chain.getTokenContract(),
       [...approverSet],
     );
@@ -135,12 +143,22 @@ export class AppService {
       toBlock,
       transferFilterGenerator.getToFilters(),
     );
-    return [fromTransfers, toTransfers];
+    const deposits = await this.chain.getEventsBetween<DepositEvent>(
+      fromBlock,
+      toBlock,
+      transferFilterGenerator.getDepositFilters(),
+    );
+    const withdrawals = await this.chain.getEventsBetween<WithdrawalEvent>(
+      fromBlock,
+      toBlock,
+      transferFilterGenerator.getWithdrawalFilters(),
+    );
+    return { fromTransfers, toTransfers, deposits, withdrawals };
   }
 
   private async processApprovalEvent(event: ApprovalEvent) {
     const { args, blockNumber } = event;
-    const { owner, value } = args;
+    const { guy: owner, wad: value } = args;
 
     // Sanity check that this is a more recent approval than the cur in redis
     const lastBlock = await this.redis.getCurApprovalBlock(owner);
