@@ -105,7 +105,7 @@ export class AppService {
       curBlockRangeActiveApproverSet.add(t.args.src);
     });
     approvalEvents.forEach((t) => {
-      curBlockRangeActiveApproverSet.add(t.args.owner);
+      curBlockRangeActiveApproverSet.add(t.args.src);
     });
     const curBlockNumber = await this.chain.provider.getBlockNumber();
     await Promise.all(
@@ -158,7 +158,7 @@ export class AppService {
 
   private async processApprovalEvent(event: ApprovalEvent) {
     const { args, blockNumber } = event;
-    const { guy: owner, wad: value } = args;
+    const { src: owner, wad: value } = args;
 
     // Sanity check that this is a more recent approval than the cur in redis
     const lastBlock = await this.redis.getCurApprovalBlock(owner);
