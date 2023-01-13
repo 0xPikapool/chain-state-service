@@ -6,7 +6,7 @@ Service to keep redis hydrated with real-time chain-data required for the API Se
 
 Primarily, the service
 1. Scrapes `Approval` events where a SettlementContract is the spender, and stores this information + the approve amounts in Redis
-2. Scrapes `Transfer` events involving each 'Approver', and uses those as a trigger to update approver balances and cache them in Redis
+2. Scrapes `Transfer`, `Deposit`, `Withdrawal` events involving each 'Approver', and uses them to trigger balance updates
 
 The service can be arbitrarily stopped/crashed and restarted safetly, it will pick up where it left off.
 
